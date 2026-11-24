@@ -208,7 +208,9 @@ const PADS={
   ruin0:{x:60,y:150,cost:70,label:'שיפוץ בית',minR:3.8},
   ruin1:{x:260,y:150,cost:70,label:'שיפוץ בית',minR:3.8},
   ruin2:{x:560,y:150,cost:70,label:'שיפוץ בית',minR:3.8},
-  well:{x:380,y:1120,cost:60,label:'תיקון הבאר'}
+  well:{x:380,y:1120,cost:60,label:'תיקון הבאר'},
+  hire:{x:690,y:600,cost:40,label:'לשכור שוליה'},
+  hire2:{x:690,y:600,cost:110,label:'שוליה מיומנת'}
 };
 const HOUSES=[
   {id:'ruin0',x:60,y:112,ruin:1},{id:'g0',x:160,y:112},{id:'ruin1',x:260,y:112,ruin:1},{id:'g1',x:360,y:112},{id:'g2',x:460,y:112},{id:'ruin2',x:560,y:112,ruin:1},{id:'hInf',x:685,y:112,ch:'influencer'},
@@ -251,7 +253,7 @@ function newState(mode){
   const memo={};CH_KEYS.forEach(k=>memo[k]={trust:mods.trust||50,tags:[],hist:[]});
   return {v:2,mode,mods,t:0,day:1,coins:0,residents:44,rating:mods.rating||3.2,served:0,rated:0,starsSum:0,
     p:{x:380,y:760,stack:[]},cap:6,speed:165,face:1,
-    tiles,f2:false,coop:false,pie:false,drought:false,well:false,helper:false,sign:false,
+    tiles,f2:false,coop:false,pie:false,drought:false,well:false,helper:false,hire:0,hire2:0,app:null,sign:false,
     nests:NESTS.map(n=>({x:n[0],y:n[1],eggs:0,t:0})),
     oven:{in:0,out:0,t:0},pov:{w:0,e:0,out:0,t:0},
     pads:Object.fromEntries(Object.keys(PADS).map(k=>[k,{paid:0,done:false}])),
@@ -264,7 +266,7 @@ function newState(mode){
 const P=()=>S.p;
 /* saves: primary key + rolling backup of the previous good save (protects against a corrupted/partial write) */
 function save(){try{const j=JSON.stringify(S);const prev=localStorage.getItem(SAVE_KEY);if(prev&&prev!==j)localStorage.setItem('lastVillage.s1.bak',prev);localStorage.setItem(SAVE_KEY,j);}catch(e){}}
-function load(){for(const key of [SAVE_KEY,'lastVillage.s1.bak']){try{const s=JSON.parse(localStorage.getItem(key));if(s&&s.chars&&s.p){if(s.v===1)return tutFix(migrate(s));if(s.v===2)return tutFix(s);}}catch(e){}}return null;}
+function load(){for(const key of [SAVE_KEY,'lastVillage.s1.bak']){try{const s=JSON.parse(localStorage.getItem(key));if(s&&s.chars&&s.p){if(s.v===1)return v33Fix(tutFix(migrate(s)));if(s.v===2)return v33Fix(tutFix(s));}}catch(e){}}return null;}
 /* save migration v1 (3.0) -> v2 (3.1): keep progress, add new systems with neutral defaults */
 function migrate(s){const d=newState('normal');for(const k in d)if(!(k in s))s[k]=d[k];
   for(const k in d.ev)if(!(k in s.ev))s.ev[k]=k==='bribe2'?!!s.ev.meeting:s.t>({rumor:430,family:500})[k];
@@ -581,6 +583,7 @@ function tutorial(){
     if(S.tut===6)S.tips.skip=1;
     tutTarget=s.tg?s.tg():null;
     if(tutShown!==S.tut){tutShown=S.tut;$('hTxt').textContent=s.txt;$('hStep').textContent=(S.tut+1)+'/'+TUT.length;h.style.display='flex';h.classList.remove('pop');void h.offsetWidth;h.classList.add('pop');obEl(s.hud||null);}}
+  else if(S.xh&&S.t<S.xh.until&&padVisible(S.xh.k)){if(tutShown!=='x'+S.xh.k){tutShown='x'+S.xh.k;$('hTxt').textContent=S.xh.txt;$('hStep').textContent='חדש';h.style.display='flex';h.classList.remove('pop');void h.offsetWidth;h.classList.add('pop');}tutTarget={x:PADS[S.xh.k].x,y:PADS[S.xh.k].y,r:56};}
   else if(tutShown!==-2){tutShown=-2;tutTarget=null;h.style.display='none';obEl(null);}
   const q=queue();
   if(!S.tips.named&&q.some(c=>c.named)){S.tips.named=1;const c=q.find(c=>c.named);banner(c.named,CHARS[c.named].lines[0]);setTimeout(()=>toast('לקוחות עם שם הם תושבים עם סיפור. הגש להם 3 פעמים — והם נשארים בכפר.',4),5000);}
@@ -595,7 +598,7 @@ function tutorial(){
 let xferT=0,saveT=0,padMsgT=0,helperT=0,moving=false,fullMsgT=0;
 function takeLast(type){const s=P().stack;const i=s.lastIndexOf(type);if(i<0)return false;s.splice(i,1);return true;}
 function near(o,r){return dist(P().x,P().y,o.x,o.y)<r;}
-function padVisible(k){const ps=S.pads[k];if(ps.done)return false;if(k==='coop')return!S.coop;if(k==='f2')return!S.f2;if(k==='pie')return S.coop&&!S.pie;if(k==='well')return S.drought&&!S.well;return true;}
+function padVisible(k){const ps=S.pads[k];if(ps.done)return false;if(k==='coop')return!S.coop;if(k==='f2')return!S.f2;if(k==='pie')return S.coop&&!S.pie;if(k==='well')return S.drought&&!S.well;if(k==='hire')return S.t>=DAY_LEN&&!S.hire;if(k==='hire2')return S.hire&&!S.hire2&&S.day>=4;return true;}
 function walk(c,x,y,sp,dt){const dx=x-c.x,dy=y-c.y,l=Math.hypot(dx,dy);if(l<1){c.x=x;c.y=y;c.mv=false;return;}const m=Math.min(l,sp*dt);c.x+=dx/l*m;c.y+=dy/l*m;c.mv=true;if(Math.abs(dx)>1)c.face=dx<0?-1:1;}
 function unlock(k){
   const d=PADS[k];S.pads[k].done=true;ring(d.x,d.y,'#ffe14d',90,.8);beam(d.x,d.y,'rgba(255,220,120,.9)');cap('🎉 נפתח: '+d.label);S.stats.unlockT[k]=Math.round(S.t);burst(d.x,d.y,'#ffe14d',36,220);confetti(d.x,d.y,50);burst(d.x,d.y,'#fff',16,160);shake=.35;
@@ -604,6 +607,7 @@ function unlock(k){
   if(k==='pie'){S.pie=true;toast('תנור פאי! הכנס חיטה וביצים — וקבל פאי.');}
   if(k==='well'){S.well=true;S.drought=false;toast('הבאר של סבא עובדת שוב! החיטה צומחת כרגיל.');gossip(null,'החוואי תיקן את הבאר של סבא שלו!');}
   if(k.startsWith('ruin'))addRes(5,'משפחה חדשה עברה לבית המשופץ!');
+  if(k==='hire')appHire(1);if(k==='hire2')appHire(2);
   save();
 }
 function update(dt){
@@ -670,6 +674,7 @@ function update(dt){
   if(S.t>=DAYS*DAY_LEN&&!S.free){endSeason();return;}
   if(S.bribeT>0)S.bribeT-=dt;
   gossipCD-=dt;if(gossipCD<=0){gossipCD=8+R()*5;gossip(null,gossipLine());}
+  appTick(dt);appHints();
   tutorial();
   saveT+=dt;if(saveT>3){saveT=0;save();}
 }
@@ -876,7 +881,7 @@ function saveIO(back){
   save();let code='';try{code=btoa(unescape(encodeURIComponent(JSON.stringify(S))));}catch(e){}
   modal(`<h2>גיבוי שמירה</h2><p class="small">העתק את הקוד ושמור אותו (בפתקים, בהודעה לעצמך). כדי לשחזר — הדבק קוד ולחץ "שחזר". השמירה נשארת רק אצלך במכשיר; אין ענן.</p><textarea id="saveCode" dir="ltr" style="width:100%;height:90px;font-size:11px;border-radius:10px;border:2px solid #d8c8a8;padding:6px">${code}</textarea>`,
    [{t:'📋 העתק קוד',cls:'alt',fn:()=>{try{navigator.clipboard.writeText(code);toast('הקוד הועתק',2);}catch(e){toast('סמן את הקוד והעתק ידנית',2.5);}saveIO(back);}},
-    {t:'♻️ שחזר מהקוד שבתיבה',cls:'alt',keep:1,fn:()=>{const v=($('saveCode')||{}).value||'';try{const s=JSON.parse(decodeURIComponent(escape(atob(v.trim()))));const ok=s&&(s.v===1||s.v===2)&&s.chars&&s.p;if(!ok)throw 0;S=tutFix(s.v===1?migrate(s):s);S.ended=false;resetFx();recomputeStats();save();toast('השמירה שוחזרה!',2.5);back&&back();}catch(e){toast('הקוד לא תקין',2.5);saveIO(back);}}},
+    {t:'♻️ שחזר מהקוד שבתיבה',cls:'alt',keep:1,fn:()=>{const v=($('saveCode')||{}).value||'';try{const s=JSON.parse(decodeURIComponent(escape(atob(v.trim()))));const ok=s&&(s.v===1||s.v===2)&&s.chars&&s.p;if(!ok)throw 0;S=v33Fix(tutFix(s.v===1?migrate(s):s));S.ended=false;resetFx();recomputeStats();save();toast('השמירה שוחזרה!',2.5);back&&back();}catch(e){toast('הקוד לא תקין',2.5);saveIO(back);}}},
     {t:'חזרה',fn:()=>settingsMenu(back)}]);
 }
 
@@ -973,7 +978,62 @@ function obRender(){const sp=$('spot');if(!sp)return;const on=started&&S&&S.tut<
   const x=Math.round((tutTarget.x-cam.x)*Z),y=Math.round((tutTarget.y-cam.y)*Z),r=Math.round((tutTarget.r||64)*Z);const k=x+','+y+','+r;
   if(k!==obPrev){obPrev=k;sp.style.transform=`translate(${x-r}px,${y-r}px)`;sp.style.width=sp.style.height=2*r+'px';}
   if(sp.style.opacity!=='1')sp.style.opacity='1';sp.classList.toggle('soft',S.t-(S.obT0||0)>2.5);}
-$('obSkip').onclick=e=>{e.stopPropagation();sfx('choice');tutFinish('skip');};
+$('obSkip').onclick=e=>{e.stopPropagation();sfx('choice');if(S.tut>=TUT.length){S.xh=null;return;}tutFinish('skip');};
+
+/* ================= v3.3: hired apprentice (נועה, השוליה מהכפר) =================
+   Lv1 (40, from day 2): harvests wheat and loads the oven (carries 2). Lv2 (110, from day 4): faster, carries 3,
+   and also brings ready bread to the first customer who waits for bread. Daily wage at day end (6 / 10). */
+const APP={name:'נועה',body:'#e0864a',hair:'#6a3a18',long:true,home:{x:640,y:700}};
+function appWage(){return Math.round((S.hire2?10:6)*(S.mods.priceMul||1));}
+function v33Fix(s){if(!s)return s;for(const k in PADS)if(!s.pads[k])s.pads[k]={paid:0,done:false};if(s.hire===undefined){s.hire=0;s.hire2=0;s.app=null;}return s;}
+function appHire(lv){if(lv===1){S.hire=1;S.app={x:PADS.hire.x,y:PADS.hire.y,st:'idle',carry:[],t:.8,face:-1,mv:false,ti:-1,wait:0,unpaid:false};
+    toast(`${APP.name} מצטרפת! היא קוצרת חיטה ומכניסה לתנור. שכר: ${appWage()} מטבעות בסוף כל יום.`,5);S.xh=null;}
+  else{S.hire2=1;toast(`${APP.name} התקדמה: מהירה יותר, סוחבת 3, ומגישה לחם ללקוח הראשון. שכר: ${appWage()} ליום.`,5);S.xh=null;}
+  if(S.app)floatText(S.app.x,S.app.y-80,'💛','#fff',22);}
+/* takes only from plenty: leaves the last 3 ripe tiles to the player (matters in the drought and for the pie oven) */
+function appRipe(a){let best=-1,bd=1e9;const p=P();if(S.tiles.filter(t=>t.ripe&&(t.f!=='f2'||S.f2)).length<=3)return -1;S.tiles.forEach((t,i)=>{if(!t.ripe||(t.f==='f2'&&!S.f2))return;if(dist(t.x,t.y,p.x,p.y)<70)return;const d=dist(t.x,t.y,a.x,a.y);if(d<bd){bd=d;best=i;}});return best;}
+function appBreadNeed(){const f=queue()[0];return f&&f.want==='bread'&&f.got<f.n?f.n-f.got:0;}
+/* Lv2 delivers only when it can't clash with the player: player not carrying bread, not at the oven exit or the counter */
+function appCanDeliver(){const p=P();return S.oven.out>0&&appBreadNeed()>0&&!p.stack.includes('bread')&&dist(p.x,p.y,OVEN_OUT.x,OVEN_OUT.y)>90&&dist(p.x,p.y,SERVE.x,SERVE.y)>110;}
+function appTick(dt){const a=S.app;if(!S.hire||!a)return;
+  const lv2=!!S.hire2,sp=(lv2?120:88)*(a.unpaid?.6:1),cap=lv2?3:2,o=S.oven,OC=ovenCap();
+  if(a.t>0){a.t-=dt;a.mv=false;return;}
+  const go=(x,y)=>{walk(a,x,y,sp,dt);return dist(a.x,a.y,x,y)<3;};
+  switch(a.st){
+    case 'idle':{
+      if(lv2&&!a.carry.length&&appCanDeliver()){a.st='toOut';break;}
+      const enough=o.out>=6&&o.in>=2;  // bread is piling up: don't hoard more wheat
+      const ti=a.carry.length<cap&&!enough?appRipe(a):-1;
+      if(a.carry.length&&(a.carry.length>=cap||ti<0)){a.st='toOven';break;}
+      if(ti>=0){a.ti=ti;a.st='toTile';break;}
+      if(go(APP.home.x,APP.home.y))a.mv=false;break;}
+    case 'toTile':{const t=S.tiles[a.ti];if(!t||!t.ripe){a.st='idle';break;}
+      if(go(t.x,t.y+6)){t.ripe=false;t.t=regrowTime();a.carry.push('wheat');burst(t.x,t.y-8,'#f2c84b',5,80);a.t=.45;a.st='idle';}break;}
+    case 'toOven':{if(!go(OVEN_IN.x-34,OVEN_IN.y+14))break;
+      if(a.carry.length&&o.in<Math.min(OC,lv2?6:4)){a.carry.pop();o.in++;fly('wheat',a.x,a.y-50,OVEN.x,OVEN.y-20);a.t=.25;a.wait=0;}
+      else if(a.carry.length){a.wait+=dt;a.mv=false;if(a.wait>6){a.wait=0;a.st='idle';}}   // oven stocked: wait a bit
+      if(!a.carry.length)a.st='idle';break;}
+    case 'toOut':{if(!go(OVEN_OUT.x+30,OVEN_OUT.y+14))break;const need=Math.min(appBreadNeed(),cap-a.carry.length);
+      if(need>0&&o.out>0){o.out--;a.carry.push('bread');fly('bread',OVEN_OUT.x,OVEN_OUT.y-10,a.x,a.y-50);a.t=.2;}
+      else a.st=a.carry.length?'toServe':'idle';break;}
+    case 'toServe':{if(!go(SERVE.x+40,SERVE.y+8))break;const f=queue()[0];
+      if(a.carry.length&&f&&f.want==='bread'&&f.got<f.n){a.carry.pop();f.got++;fly('bread',a.x,a.y-50,f.x,f.y-30,.3);a.t=.3;a.wait=0;if(f.got>=f.n)complete(f);}
+      else if(a.carry.length){a.wait+=dt;a.mv=false;if(a.wait>5){a.wait=0;a.st='toBack';}}
+      else a.st='idle';break;}
+    case 'toBack':{if(!go(OVEN_OUT.x+30,OVEN_OUT.y+14))break;while(a.carry.length&&o.out<OC){a.carry.pop();o.out++;}a.carry=a.carry.filter(i=>i!=='bread');a.st='idle';break;}
+  }}
+function drawApp(){const a=S.app;if(!a)return;
+  drawChar(a.x,a.y,{body:APP.body,hair:APP.hair,long:APP.long,mv:a.mv,face:a.face||1,ph:7,scale:.92,mood:a.unpaid?'sad':'happy'});
+  for(let i=0;i<a.carry.length;i++)drawItem(a.carry[i],a.x,a.y-60-i*9.5,.9);
+  txt(APP.name+(S.hire2?' ★':''),a.x,a.y+14,10,'#fff');}
+/* hints: when the apprentice becomes available / can be trained */
+function appHints(){if(S.tut<TUT.length)return;
+  if(!S.tips.hire&&padVisible('hire')){S.tips.hire=1;S.xh={txt:`שוליה מהכפר מחפשת עבודה! עמוד על השלט כדי לשכור את ${APP.name} 🧺`,k:'hire',until:S.t+10};}
+  if(!S.tips.hire2&&padVisible('hire2')){S.tips.hire2=1;S.xh={txt:`${APP.name} מוכנה ללמוד עוד: מהירה יותר ומגישה לחם. עמוד על השלט 🌟`,k:'hire2',until:S.t+10};}}
+{const _d=dayEnd;dayEnd=function(){const r=_d.apply(this,arguments);
+  if(S.hire&&S.app){const w=appWage(),pay=Math.min(S.coins,w);S.coins-=pay;S.stats.wages=(S.stats.wages||0)+pay;S.app.unpaid=pay<w;
+    floatText(S.app.x,S.app.y-70,`-${pay} שכר ל${APP.name}`,'#ffe14d',14);if(S.app.unpaid)setTimeout(()=>toast(`לא היה מספיק לשכר. ${APP.name} עייפה ועובדת לאט עד מחר.`,3.5),3300);}
+  return r;};}
 /* ================= render v2: sprites & art ================= */
 const SPR={};
 function mkC(w,h){const c=document.createElement('canvas');c.width=Math.max(1,Math.ceil(w));c.height=Math.max(1,Math.ceil(h));return c;}
@@ -1297,12 +1357,12 @@ const DECOR=[{k:0,x:22,y:432,s:1},{k:2,x:740,y:442,s:1.05},{k:1,x:738,y:735,s:.9
   {k:'lamp',x:130,y:292},{k:'lamp',x:630,y:292},{k:'lamp',x:300,y:486},{k:'lamp',x:520,y:820}];
 const BUTTER=[];for(let i=0;i<5;i++)BUTTER.push({x:100+R()*560,y:400+R()*700,tx:0,ty:0,t:0,c:['#ff8ab0','#ffd34d','#8ad8ff','#c7a0ff','#fff'][i]});
 function dayPhase(){if(!S)return{night:0,col:null,a:0};const p=(S.t%DAY_LEN)/DAY_LEN;const mix=(c1,c2,k)=>c1.map((v,i)=>v+(c2[i]-v)*k);
-  if(p<.1){const k=1-p/.1;return{night:.4*k,col:[255,170,170],a:.12*k};}
+  if(p<.1){const k=1-p/.1;return{night:.4*k,col:[255,170,170],a:.05*k};}
   if(p<.62)return{night:0,col:null,a:0};
-  if(p<.76){const k=(p-.62)/.14;return{night:.3*k,col:[255,140,60],a:.17*k};}
-  if(p<.9){const k=(p-.76)/.14;return{night:.3+.7*k,col:mix([255,140,60],[35,45,120],k),a:.17+.15*k};}
-  if(p<.96)return{night:1,col:[35,45,120],a:.32};
-  const k=(p-.96)/.04;return{night:1-.6*k,col:mix([35,45,120],[255,170,170],k),a:.32-.2*k};}
+  if(p<.76){const k=(p-.62)/.14;return{night:.3*k,col:[255,140,60],a:.06*k};}
+  if(p<.9){const k=(p-.76)/.14;return{night:.3+.7*k,col:mix([255,140,60],[70,90,170],k),a:.06+.04*k};}
+  if(p<.96)return{night:1,col:[70,90,170],a:.10};
+  const k=(p-.96)/.04;return{night:1-.6*k,col:mix([70,90,170],[255,170,170],k),a:.10-.05*k};}
 function custMood(c){if(c.st==='out')return c.happy?'happy':c.angry?'angry':'neutral';if(c.offended)return'angry';const f=c.wait/c.maxP;return f>.72?'sad':f<.25?'happy':'neutral';}
 function drawZone(z,lab,icon){const pulse=Math.sin(animT*3)*.5+.5;
   ctx.beginPath();ctx.ellipse(z.x,z.y,32,20,0,0,7);ctx.fillStyle=`rgba(255,255,255,${.22+pulse*.08})`;ctx.fill();
@@ -1417,6 +1477,7 @@ function render(){
   walkers.forEach(w=>L.push([w.y,()=>drawWalker(w)]));
   if(S.coop)chickens.forEach(c=>L.push([c.y,()=>drawChicken(c)]));
   if(S.helper)L.push([OVEN_IN.y-20,()=>{drawChar(OVEN_IN.x+42,OVEN_IN.y-20,Object.assign({},charOpts('teen'),{scale:.95,mood:'happy',mv:helperT>5.4}));txt('עומר',OVEN_IN.x+42,OVEN_IN.y-4,10,'#fff');}]);
+  if(S.hire&&S.app)L.push([S.app.y,drawApp]);
   const q=queue();S.cust.forEach(c=>L.push([c.y,()=>drawCustomer(c,q.indexOf(c))]));
   L.push([p.y,drawPlayer]);
   L.sort((a,b)=>a[0]-b[0]).forEach(e=>e[1]());
@@ -1429,14 +1490,14 @@ function render(){
   const dp=dayPhase();
   if(dp.a>.005){ctx.setTransform(DPR,0,0,DPR,0,0);
     // v3.1: real night = multiply (keeps colours rich, lets window/lamp glows pop); colour tint kept for dusk/dawn warmth
-    const n=LOWFX?0:dp.night*.8;if(n>.01){ctx.globalCompositeOperation='multiply';ctx.fillStyle=`rgb(${Math.round(255-160*n)},${Math.round(255-150*n)},${Math.round(255-85*n)})`;ctx.fillRect(0,0,VW,VH);ctx.globalCompositeOperation='source-over';}
-    ctx.fillStyle=`rgba(${dp.col.map(Math.round).join(',')},${dp.a*(1-n*.75)})`;ctx.fillRect(0,0,VW,VH);WT();}
+    const n=LOWFX?0:dp.night*.26;if(n>.01){ctx.globalCompositeOperation='multiply';ctx.fillStyle=`rgb(${Math.round(255-160*n)},${Math.round(255-150*n)},${Math.round(255-85*n)})`;ctx.fillRect(0,0,VW,VH);ctx.globalCompositeOperation='source-over';}
+    ctx.fillStyle=`rgba(${dp.col.map(Math.round).join(',')},${dp.a*(1-n*.5)})`;ctx.fillRect(0,0,VW,VH);WT();}
   drawAtmosphere(WT);
   // glows (additive)
   ctx.globalCompositeOperation='lighter';const gl=GLOW().c,fi=FIRE().c;
   for(const h of HOUSES){const {state}=houseState(h);if(state!=='lit')continue;const w=h.big?104:76,hh=h.big?52:44;ctx.globalAlpha=.16+dp.night*.5+.04*Math.sin(animT*2+h.x);ctx.drawImage(gl,h.x-w*.9,h.y-hh-w*.45,w*1.8,w*1.3);
     if(dp.night>.2){ctx.globalAlpha=dp.night*.55;const wx=h.big?[-w/2+17,-w/2+36,w/2-36,w/2-17]:[-w/2+16,w/2-16];for(const x of wx)ctx.drawImage(gl,h.x+x-18,h.y-hh+18-18,36,36);}}
-  if(dp.night>.05)for(const d of DECOR)if(d.k==='lamp'){ctx.globalAlpha=dp.night*.85;ctx.drawImage(gl,d.x-40,d.y-112,80,64);ctx.globalAlpha=dp.night*.35;ctx.drawImage(gl,d.x-36,d.y-16,72,30);}
+  if(dp.night>.05)for(const d of DECOR)if(d.k==='lamp'){ctx.globalAlpha=dp.night*.6;ctx.drawImage(gl,d.x-40,d.y-112,80,64);ctx.globalAlpha=dp.night*.25;ctx.drawImage(gl,d.x-36,d.y-16,72,30);}
   for(const [o,isPie] of [[S.oven,false],[S.pov,true]]){if(isPie&&!S.pie)continue;if(o.t>0||o.in>0||(isPie&&(o.w||o.e))){const c=isPie?PIE:OVEN;ctx.globalAlpha=.55+.25*Math.sin(animT*13)+dp.night*.3;ctx.drawImage(fi,c.x-30,c.y-40,60,46);}}
   ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
   // particles
@@ -1544,11 +1605,11 @@ function drawEmote(c){const e=c.emo;if(!e)return;const k=e.t/e.dur,pop=k<.15?k/.
 function drawAtmosphere(WT){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   if(VFX.dry>.01){
-    if(!LOWFX){ctx.globalCompositeOperation='saturation';ctx.fillStyle=`rgba(128,128,128,${.38*VFX.dry})`;ctx.fillRect(0,0,VW,VH);ctx.globalCompositeOperation='source-over';}
-    ctx.fillStyle=`rgba(255,160,50,${.17*VFX.dry})`;ctx.fillRect(0,0,VW,VH);
+    if(!LOWFX){ctx.globalCompositeOperation='saturation';ctx.fillStyle=`rgba(128,128,128,${.24*VFX.dry})`;ctx.fillRect(0,0,VW,VH);ctx.globalCompositeOperation='source-over';}
+    ctx.fillStyle=`rgba(255,170,70,${.09*VFX.dry})`;ctx.fillRect(0,0,VW,VH);
     if(!LOWFX){for(let i=0;i<3;i++){const y=VH-((animT*38+i*VH/3)%(VH+80));ctx.fillStyle=`rgba(255,235,190,${.07*VFX.dry})`;ctx.fillRect(0,y,VW,26+8*Math.sin(animT*2+i));}const g=ctx.createLinearGradient(0,0,0,VH*.35);g.addColorStop(0,`rgba(255,230,160,${.22*VFX.dry})`);g.addColorStop(1,'rgba(255,230,160,0)');ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH*.35);}}
-  if(VFX.rain>.01){ctx.fillStyle=`rgba(60,90,140,${.16*VFX.rain})`;ctx.fillRect(0,0,VW,VH);}
-  if(VFX.dev>.01){ctx.fillStyle=`rgba(50,25,80,${.17*VFX.dev})`;ctx.fillRect(0,0,VW,VH);}
+  if(VFX.rain>.01){ctx.fillStyle=`rgba(80,110,160,${.06*VFX.rain})`;ctx.fillRect(0,0,VW,VH);}
+  if(VFX.dev>.01){ctx.fillStyle=`rgba(60,30,90,${.08*VFX.dev})`;ctx.fillRect(0,0,VW,VH);}
   for(const p of VFX.wx){if(p.k==='r'){ctx.strokeStyle='rgba(210,230,255,.55)';ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+p.vx*.025,p.y+p.l);ctx.stroke();}
     else{ctx.fillStyle=`rgba(225,170,95,${.5+.3*Math.sin(p.ph*2)})`;ctx.beginPath();ctx.arc(p.x,p.y+Math.sin(p.ph*1.7)*3,p.s,0,7);ctx.fill();}}
   if(VFX.ff.length){ctx.globalCompositeOperation='lighter';const gl=GLOW().c;WT();for(const f of VFX.ff){const a=(.45+.45*Math.sin(f.ph*3))*dayPhase().night;ctx.globalAlpha=a;ctx.drawImage(gl,f.x-9*f.s,f.y-9*f.s,18*f.s,18*f.s);}ctx.setTransform(DPR,0,0,DPR,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';}
